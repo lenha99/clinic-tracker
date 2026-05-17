@@ -843,8 +843,7 @@ export default function Home() {
             <div className="mb-4 text-gray-500">
               방문 캘린더
             </div>
-
-            ```tsx
+               
 <div className="grid grid-cols-7 gap-2">
 
   {weekdays.map((day) => (
