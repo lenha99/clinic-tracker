@@ -284,6 +284,11 @@ export default function Home() {
     currentMonth + 1,
     0
   ).getDate();
+  const firstDayOfMonth = new Date(
+  currentYear,
+  currentMonth,
+  1
+  ).getDay();
 
   return (
     <div className="min-h-screen bg-gray-100 p-4 pb-24">
@@ -839,109 +844,143 @@ export default function Home() {
               방문 캘린더
             </div>
 
-            <div className="grid grid-cols-7 gap-2">
+            ```tsx
+<div className="grid grid-cols-7 gap-2">
 
-              {weekdays.map((day) => (
-                <div
-                  key={day}
-                  className="text-center text-sm font-bold"
-                >
-                  {day}
-                </div>
-              ))}
+  {weekdays.map((day) => (
+    <div
+      key={day}
+      className="text-center text-sm font-bold"
+    >
+      {day}
+    </div>
+  ))}
 
-              {Array.from({
-                length: daysInMonth,
-              }).map((_, i) => {
-                const day = i + 1;
+  {/* 시작 요일 빈칸 */}
+  {Array.from({
+    length: firstDayOfMonth,
+  }).map((_, idx) => (
+    <div key={`empty-${idx}`} />
+  ))}
 
-                const dateString = `${currentYear}-${String(
-                  currentMonth + 1
-                ).padStart(2, "0")}-${String(
-                  day
-                ).padStart(2, "0")}`;
+  {/* 날짜 */}
+  {Array.from({
+    length: daysInMonth,
+  }).map((_, i) => {
+    const day = i + 1;
 
-                const currentDate = new Date(
-                  currentYear,
-                  currentMonth,
-                  day
-                );
+    const dateString = `${currentYear}-${String(
+      currentMonth + 1
+    ).padStart(2, "0")}-${String(
+      day
+    ).padStart(2, "0")}`;
 
-                const currentDay =
-                  weekdays[currentDate.getDay()];
+    const currentDate =
+      new Date(
+        currentYear,
+        currentMonth,
+        day
+      );
 
-                const daySchedules =
-                  professors.flatMap(
-                    (professor) =>
-                      professor.schedules
-                        .filter(
-                          (schedule) =>
-                            schedule.day ===
-                            currentDay
-                        )
-                        .map((schedule) => ({
-                          professor,
-                          period:
-                            schedule.period,
-                        }))
-                  );
+    const currentDay =
+      weekdays[
+        currentDate.getDay()
+      ];
 
-                const dayVisits = visits.filter(
+    const daySchedules =
+      professors.flatMap(
+        (professor) =>
+          professor.schedules
+            .filter(
+              (schedule) =>
+                schedule.day ===
+                currentDay
+            )
+            .map(
+              (schedule) => ({
+                professor,
+                period:
+                  schedule.period,
+              })
+            )
+      );
+
+    const previewSchedules =
+      daySchedules.slice(0, 2);
+
+    const hiddenCount =
+      daySchedules.length - 2;
+
+    const dayVisits =
+      visits.filter(
+        (visit) =>
+          visit.date ===
+          dateString
+      );
+
+    return (
+      <div
+        key={day}
+        onClick={() =>
+          setSelectedDate(
+            dateString
+          )
+        }
+        className={`min-h-[140px] rounded-2xl border bg-gray-50 p-2 cursor-pointer ${
+          dateString === todayDate
+            ? "border-2 border-blue-500"
+            : ""
+        }`}
+      >
+        <div className="font-bold">
+          {day}
+        </div>
+
+        <div className="mt-2 space-y-1">
+
+          {previewSchedules.map(
+            (item, idx) => {
+              const visited =
+                dayVisits.some(
                   (visit) =>
-                    visit.date === dateString
+                    visit.professorId ===
+                      item.professor
+                        .id &&
+                    visit.period ===
+                      item.period
                 );
 
-                return (
-                  <div
-                    key={day}
-                    onClick={() =>
-                      setSelectedDate(
-                        dateString
-                      )
-                    }
-                    className="min-h-[140px] rounded-2xl border bg-gray-50 p-2"
-                  >
-                    <div className="font-bold">
-                      {day}
-                    </div>
+              return (
+                <div
+                  key={idx}
+                  className={`rounded-lg px-2 py-1 text-[10px] ${
+                    visited
+                      ? "bg-green-500 text-white"
+                      : "bg-gray-300"
+                  }`}
+                >
+                  {
+                    item.professor
+                      .name
+                  }{" "}
+                  {item.period}
+                </div>
+              );
+            }
+          )}
 
-                    <div className="mt-2 space-y-1">
-
-                      {daySchedules.map(
-                        (item, idx) => {
-                          const visited =
-                            dayVisits.some(
-                              (visit) =>
-                                visit.professorId ===
-                                  item.professor
-                                    .id &&
-                                visit.period ===
-                                  item.period
-                            );
-
-                          return (
-                            <div
-                              key={idx}
-                              className={`rounded-lg px-2 py-1 text-[10px] ${
-                                visited
-                                  ? "bg-green-500 text-white"
-                                  : "bg-gray-300"
-                              }`}
-                            >
-                              {
-                                item.professor
-                                  .name
-                              }{" "}
-                              {item.period}
-                            </div>
-                          );
-                        }
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+          {hiddenCount > 0 && (
+            <div className="rounded-lg bg-gray-200 px-2 py-1 text-center text-[10px]">
+              +{hiddenCount}개
             </div>
+          )}
+        </div>
+      </div>
+    );
+  })}
+</div>
+```
+
 
             {selectedDate && (
               <div className="mt-6 rounded-3xl bg-gray-100 p-4">
