@@ -1266,7 +1266,7 @@ export default function Home() {
     return (
       <span
         key={idx}
-        className={`rounded px-1 py-0.5 text-[9px] font-medium leading-tight ${
+        className={`rounded px-1 py-0.5 text-[9px] font-medium leading-tight whitespace-nowrap ${
           visited
             ? "bg-green-500 text-white"
             : "bg-gray-200 text-gray-600"
