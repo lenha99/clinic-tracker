@@ -1251,34 +1251,32 @@ export default function Home() {
                   >
                     <div className="font-bold">{day}</div>
 
-                    <div className="mt-2 space-y-1">
-                      {previewSchedules.map((item, idx) => {
-                        const visited = dayVisits.some(
-                          (visit) =>
-                            visit.professorId === item.professor.id &&
-                            visit.period === item.period,
-                        );
+                    <div className="mt-1 flex flex-wrap gap-0.5">
+  {daySchedules.map((item, idx) => {
+    const visited = dayVisits.some(
+      (v) =>
+        v.professorId === item.professor.id &&
+        v.period === item.period,
+    );
+    const shortName =
+      item.professor.name.length <= 3
+        ? item.professor.name
+        : item.professor.name.slice(0, 3);
 
-                        return (
-                          <div
-                            key={idx}
-                            className={`rounded-lg px-2 py-1 text-[10px] ${
-                              visited
-                                ? "bg-green-500 text-white"
-                                : "bg-gray-300"
-                            }`}
-                          >
-                            {item.professor.name} {item.period}
-                          </div>
-                        );
-                      })}
-
-                      {hiddenCount > 0 && (
-                        <div className="rounded-lg bg-gray-200 px-2 py-1 text-center text-[10px]">
-                          +{hiddenCount}개
-                        </div>
-                      )}
-                    </div>
+    return (
+      <span
+        key={idx}
+        className={`rounded px-1 py-0.5 text-[9px] font-medium leading-tight ${
+          visited
+            ? "bg-green-500 text-white"
+            : "bg-gray-200 text-gray-600"
+        }`}
+      >
+        {shortName}
+      </span>
+    );
+  })}
+</div>
                   </div>
                 );
               })}
