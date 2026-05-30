@@ -260,7 +260,7 @@ export default function Home() {
   });
 
   const [newEvent, setNewEvent] = useState({
-    date: "",
+    date: formatDateKey(new Date()),
     professorId: 0,
     eventType: "시술" as EventType,
     memo: "",
@@ -720,37 +720,8 @@ export default function Home() {
 
     setEvents([...events, event]);
 
-    const existing = visits.find(
-      (visit) =>
-        visit.professorId === event.professorId &&
-        visit.date === event.date &&
-        visit.period === EVENT_PERIOD,
-    );
-
-    if (!existing) {
-      setVisits([
-        ...visits,
-        {
-          professorId: event.professorId,
-          period: EVENT_PERIOD,
-          date: event.date,
-          memo: event.memo,
-        },
-      ]);
-    } else if (event.memo && !existing.memo) {
-      setVisits(
-        visits.map((visit) =>
-          visit.professorId === event.professorId &&
-          visit.period === EVENT_PERIOD &&
-          visit.date === event.date
-            ? { ...visit, memo: event.memo }
-            : visit,
-        ),
-      );
-    }
-
     setNewEvent({
-      date: "",
+      date: todayDate,
       professorId: 0,
       eventType: "시술",
       memo: "",
@@ -1837,7 +1808,7 @@ export default function Home() {
                 >
                   <div className="mb-4 text-xl font-bold text-gray-900">{product.name}</div>
 
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-[1fr_1fr_1.6fr]">
                     <label className="text-center text-sm">
                       <span className="mb-1 block font-bold text-gray-600">
                         ASP
@@ -1876,14 +1847,14 @@ export default function Home() {
                       />
                     </label>
 
-                    <div className="text-center text-sm">
+                    <div className="col-span-2 text-center text-sm sm:col-span-1">
                       <div className="mb-1 font-bold text-gray-600">Actual</div>
 
-                      <div className="flex items-center gap-1">
+                      <div className="grid grid-cols-[44px_minmax(96px,1fr)_44px] items-center gap-2">
                         <button
                           type="button"
                           onClick={() => changeKpiActual(product.name, -1)}
-                          className="rounded-xl bg-gray-200 px-3 py-3 font-bold text-gray-900"
+                          className="h-12 rounded-xl bg-gray-200 font-bold text-gray-900"
                         >
                           -
                         </button>
@@ -1898,13 +1869,13 @@ export default function Home() {
                               Number(e.target.value),
                             )
                           }
-                          className="min-w-0 flex-1 rounded-2xl border p-3 text-center text-gray-900"
+                          className="min-w-0 rounded-2xl border p-3 text-center text-gray-900"
                         />
 
                         <button
                           type="button"
                           onClick={() => changeKpiActual(product.name, 1)}
-                          className="rounded-xl bg-gray-200 px-3 py-3 font-bold text-gray-900"
+                          className="h-12 rounded-xl bg-gray-200 font-bold text-gray-900"
                         >
                           +
                         </button>
