@@ -4,6 +4,11 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "외래 방문 트래커",
   description: "외래 일정과 방문 기록을 관리하는 트래커",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "외래 트래커",
+  },
 };
 
 export const viewport: Viewport = {
@@ -11,6 +16,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  themeColor: "#2563eb",
 };
 
 export default function RootLayout({

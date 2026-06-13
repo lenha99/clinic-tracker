@@ -28,19 +28,28 @@ type Clinic = {
 
 type EventType = "시술" | "컨퍼런스" | "미팅" | "기타";
 
+type ProcedureTag = "ICD" | "CRT-D" | "IPG" | "CRT-P" | "ICM" | "CSP";
+
 type Event = {
   id: number;
   date: string;
   professorId: number;
   eventType: EventType;
   memo: string;
+  procedureTags?: ProcedureTag[];
 };
 
 type TabKey = "home" | "calendar" | "history" | "kpi" | "professor";
 
+type BeforeInstallPromptEvent = globalThis.Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+};
+
 const EVENT_PERIOD = "이벤트";
 const MAX_VISIBLE_MEMO_HISTORIES = 5;
 const eventTypes: EventType[] = ["시술", "컨퍼런스", "미팅", "기타"];
+const procedureTags: ProcedureTag[] = ["ICD", "CRT-D", "IPG", "CRT-P", "ICM", "CSP"];
 const scheduleDays = ["월", "화", "수", "목", "금", "토", "일"];
 const navTabs: { key: TabKey; label: string }[] = [
   { key: "home", label: "홈" },
@@ -168,12 +177,9 @@ const createDefaultKpiData = (): KpiData => ({
   hospitals: [],
 });
 
-const loadStoredKpiData = () => {
-  if (typeof window === "undefined") return createDefaultKpiData();
-
-  const savedKpiData = safeParseObject<
-    Partial<KpiData> & Partial<Record<ProductName, KpiProductData>>
-  >(localStorage.getItem("kpiData"));
+const normalizeKpiData = (
+  savedKpiData: Partial<KpiData> & Partial<Record<ProductName, KpiProductData>>,
+): KpiData => {
   const defaultKpiData = createDefaultKpiData();
 
   return {
@@ -212,6 +218,16 @@ const loadStoredKpiData = () => {
         }))
       : [],
   };
+};
+
+const loadStoredKpiData = () => {
+  if (typeof window === "undefined") return createDefaultKpiData();
+
+  return normalizeKpiData(
+    safeParseObject<Partial<KpiData> & Partial<Record<ProductName, KpiProductData>>>(
+      localStorage.getItem("kpiData"),
+    ),
+  );
 };
 
 const formatDateKey = (date: Date) => {
@@ -264,6 +280,7 @@ export default function Home() {
     professorId: 0,
     eventType: "시술" as EventType,
     memo: "",
+    procedureTags: [] as ProcedureTag[],
   });
 
   const [scheduleDay, setScheduleDay] = useState("월");
@@ -273,6 +290,38 @@ export default function Home() {
   const [editingEventMemo, setEditingEventMemo] = useState("");
   const [editingVisitKey, setEditingVisitKey] = useState<string | null>(null);
   const [editingVisitMemo, setEditingVisitMemo] = useState("");
+
+  const [installPromptEvent, setInstallPromptEvent] =
+    useState<BeforeInstallPromptEvent | null>(null);
+  const [isAppInstalled, setIsAppInstalled] = useState(false);
+  const [isIos, setIsIos] = useState(false);
+  const [installBannerDismissed, setInstallBannerDismissed] = useState(false);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: globalThis.Event) => {
+      e.preventDefault();
+      setInstallPromptEvent(e as BeforeInstallPromptEvent);
+    };
+
+    const handleAppInstalled = () => {
+      setIsAppInstalled(true);
+      setInstallPromptEvent(null);
+    };
+
+    window.addEventListener(
+      "beforeinstallprompt",
+      handleBeforeInstallPrompt as EventListener,
+    );
+    window.addEventListener("appinstalled", handleAppInstalled);
+
+    return () => {
+      window.removeEventListener(
+        "beforeinstallprompt",
+        handleBeforeInstallPrompt as EventListener,
+      );
+      window.removeEventListener("appinstalled", handleAppInstalled);
+    };
+  }, []);
 
   useEffect(() => {
     const frameId = window.requestAnimationFrame(() => {
@@ -285,6 +334,16 @@ export default function Home() {
       setToday(currentDate);
       setCalendarDate(currentDate);
       setHasLoadedStoredData(true);
+
+      setIsAppInstalled(
+        window.matchMedia("(display-mode: standalone)").matches ||
+          (window.navigator as Navigator & { standalone?: boolean })
+            .standalone === true,
+      );
+      setIsIos(/iphone|ipad|ipod/i.test(window.navigator.userAgent));
+      setInstallBannerDismissed(
+        localStorage.getItem("pwaInstallDismissed") === "true",
+      );
     });
 
     return () => window.cancelAnimationFrame(frameId);
@@ -578,6 +637,50 @@ export default function Home() {
       String(professor.id) === historyProfessorFilter,
   );
 
+  const weekStart = new Date(activeToday);
+  const mondayOffset =
+    weekStart.getDay() === 0 ? -6 : 1 - weekStart.getDay();
+
+  weekStart.setDate(weekStart.getDate() + mondayOffset);
+
+  const weekEnd = new Date(weekStart);
+
+  weekEnd.setDate(weekEnd.getDate() + 6);
+
+  const weekStartKey = formatDateKey(weekStart);
+  const weekEndKey = formatDateKey(weekEnd);
+
+  const professorVisitStats = professors
+    .map((professor) => {
+      const professorVisits = visitsByProfessor.get(professor.id) ?? [];
+
+      const weeklyCount = professorVisits.filter(
+        (visit) =>
+          visit.date >= weekStartKey && visit.date <= weekEndKey,
+      ).length;
+
+      const lastVisit = professorVisits[0];
+
+      const daysSinceLastVisit = lastVisit
+        ? Math.max(
+            0,
+            Math.floor(
+              (activeToday.getTime() -
+                parseDateKey(lastVisit.date).getTime()) /
+                (1000 * 60 * 60 * 24),
+            ),
+          )
+        : null;
+
+      return { professor, weeklyCount, daysSinceLastVisit };
+    })
+    .sort((a, b) => {
+      if (a.daysSinceLastVisit === null) return -1;
+      if (b.daysSinceLastVisit === null) return 1;
+
+      return b.daysSinceLastVisit - a.daysSinceLastVisit;
+    });
+
   const moveCalendarMonth = (monthOffset: number) => {
     setCalendarDate(
       (currentDate) =>
@@ -694,6 +797,90 @@ export default function Home() {
     setVisits(visits.filter((visit) => visit.professorId !== id));
   };
 
+  const exportData = () => {
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      professors,
+      visits,
+      events,
+      kpiData,
+    };
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `clinic-tracker-backup-${todayDate}.json`;
+    link.click();
+
+    URL.revokeObjectURL(url);
+  };
+
+  const importData = (file: File) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result)) as Record<string, unknown>;
+
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+          window.alert("올바른 백업 파일이 아닙니다.");
+          return;
+        }
+
+        if (
+          !window.confirm(
+            "현재 저장된 데이터를 백업 파일의 데이터로 덮어씁니다. 계속하시겠습니까?",
+          )
+        ) {
+          return;
+        }
+
+        setProfessors(Array.isArray(parsed.professors) ? (parsed.professors as Professor[]) : []);
+        setVisits(Array.isArray(parsed.visits) ? (parsed.visits as Visit[]) : []);
+        setEvents(Array.isArray(parsed.events) ? (parsed.events as Event[]) : []);
+
+        const kpiDataRaw =
+          parsed.kpiData &&
+          typeof parsed.kpiData === "object" &&
+          !Array.isArray(parsed.kpiData)
+            ? (parsed.kpiData as Partial<KpiData> & Partial<Record<ProductName, KpiProductData>>)
+            : {};
+
+        setKpiData(normalizeKpiData(kpiDataRaw));
+
+        window.alert("데이터를 가져왔습니다.");
+      } catch {
+        window.alert("백업 파일을 읽는 중 오류가 발생했습니다.");
+      }
+    };
+
+    reader.readAsText(file);
+  };
+
+  const handleImportFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+
+    if (file) importData(file);
+
+    e.target.value = "";
+  };
+
+  const handleInstallClick = async () => {
+    if (!installPromptEvent) return;
+
+    await installPromptEvent.prompt();
+    setInstallPromptEvent(null);
+  };
+
+  const dismissInstallBanner = () => {
+    setInstallBannerDismissed(true);
+    localStorage.setItem("pwaInstallDismissed", "true");
+  };
+
   const getEventVisit = (event: Event) => {
     return visits.find(
       (visit) =>
@@ -716,6 +903,8 @@ export default function Home() {
       professorId: newEvent.professorId,
       eventType: newEvent.eventType,
       memo: newEvent.memo,
+      procedureTags:
+        newEvent.eventType === "시술" ? newEvent.procedureTags : [],
     };
 
     setEvents([...events, event]);
@@ -725,7 +914,17 @@ export default function Home() {
       professorId: 0,
       eventType: "시술",
       memo: "",
+      procedureTags: [],
     });
+  };
+
+  const toggleNewEventProcedureTag = (tag: ProcedureTag) => {
+    setNewEvent((current) => ({
+      ...current,
+      procedureTags: current.procedureTags.includes(tag)
+        ? current.procedureTags.filter((t) => t !== tag)
+        : [...current.procedureTags, tag],
+    }));
   };
 
   const removeEvent = (id: number) => {
@@ -1009,6 +1208,19 @@ export default function Home() {
 
             <div className="mt-2 text-sm text-gray-900">{event.eventType}</div>
 
+            {event.procedureTags && event.procedureTags.length > 0 && (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {event.procedureTags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="rounded-full bg-purple-200 px-2 py-0.5 text-xs font-bold text-purple-800"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
+
             <div className="mt-1 text-xs text-gray-600">{event.date}</div>
 
             {isEditing ? (
@@ -1272,6 +1484,14 @@ export default function Home() {
   ).getDate();
   const firstDayOfMonth = new Date(calendarYear, calendarMonth, 1).getDay();
 
+  const showInstallButton =
+    !isAppInstalled && !installBannerDismissed && Boolean(installPromptEvent);
+  const showIosInstallHint =
+    !isAppInstalled &&
+    !installBannerDismissed &&
+    isIos &&
+    !installPromptEvent;
+
   if (!today || !calendarDate) {
     return (
       <div className="min-h-screen bg-gray-100 p-4 pb-24">
@@ -1286,6 +1506,39 @@ export default function Home() {
     <div className="min-h-screen bg-gray-100 p-4 pb-24 text-gray-900">
       <div className="mx-auto max-w-md">
         <div className="mb-5 text-3xl font-bold">외래 방문 트래커</div>
+
+        {(showInstallButton || showIosInstallHint) && (
+          <div className="mb-4 rounded-3xl bg-blue-600 p-4 text-white shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="font-bold">앱처럼 사용해보세요</div>
+                <div className="mt-1 text-sm text-blue-100">
+                  {showInstallButton
+                    ? "홈 화면에 추가하면 앱처럼 빠르게 열 수 있어요."
+                    : "Safari 공유 버튼을 누른 뒤 '홈 화면에 추가'를 선택하세요."}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={dismissInstallBanner}
+                className="shrink-0 rounded-full bg-white/20 px-3 py-1 text-xs font-bold"
+              >
+                닫기
+              </button>
+            </div>
+
+            {showInstallButton && (
+              <button
+                type="button"
+                onClick={handleInstallClick}
+                className="mt-3 w-full rounded-2xl bg-white p-3 text-sm font-bold text-blue-600"
+              >
+                앱으로 설치하기
+              </button>
+            )}
+          </div>
+        )}
 
         {/* HOME */}
         {tab === "home" && (
@@ -1357,18 +1610,47 @@ export default function Home() {
 
                 <select
                   value={newEvent.eventType}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const eventType = e.target.value as EventType;
+
                     setNewEvent({
                       ...newEvent,
-                      eventType: e.target.value as EventType,
-                    })
-                  }
+                      eventType,
+                      procedureTags:
+                        eventType === "시술" ? newEvent.procedureTags : [],
+                    });
+                  }}
                   className="w-full rounded-2xl border p-3 text-gray-900"
                 >
                   {eventTypes.map((eventType) => (
                     <option key={eventType}>{eventType}</option>
                   ))}
                 </select>
+
+                {newEvent.eventType === "시술" && (
+                  <div>
+                    <div className="mb-2 text-sm font-bold text-gray-600">
+                      시술 종류
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {procedureTags.map((tag) => (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => toggleNewEventProcedureTag(tag)}
+                          className={`rounded-full px-4 py-2 text-sm font-bold ${
+                            newEvent.procedureTags.includes(tag)
+                              ? "bg-purple-600 text-white"
+                              : "bg-gray-100 text-gray-600"
+                          }`}
+                        >
+                          {tag}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <textarea
                   value={newEvent.memo}
@@ -1623,13 +1905,20 @@ export default function Home() {
                         selectedVisit.period === item.period,
                     );
 
+                    const visitKey = getVisitKey(
+                      item.professor.id,
+                      item.period,
+                      selectedDate,
+                    );
+                    const isEditingVisitMemo = editingVisitKey === visitKey;
+
                     return (
                       <div
                         key={`${selectedDate}-${item.professor.id}-${item.period}`}
                         className="rounded-2xl bg-white p-4 text-gray-900"
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <div>
+                          <div className="min-w-0 flex-1">
                             <div className="font-bold">
                               {item.professor.name}
                             </div>
@@ -1641,24 +1930,99 @@ export default function Home() {
                             <div className="mt-2 text-sm">
                               {item.period} 외래
                             </div>
-
-                            {visit?.memo && (
-                              <div className="mt-2 rounded-xl bg-gray-100 p-2 text-sm text-gray-700">
-                                메모: {visit.memo}
-                              </div>
-                            )}
                           </div>
 
-                          <div
+                          <button
+                            type="button"
+                            onClick={() => {
+                              toggleVisitForDate(
+                                item.professor.id,
+                                selectedDate,
+                                item.period,
+                              );
+                              if (isEditingVisitMemo) {
+                                setEditingVisitKey(null);
+                              }
+                            }}
                             className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${
                               visit
                                 ? "bg-green-100 text-green-700"
-                                : "bg-gray-200 text-gray-600"
+                                : "bg-red-100 text-red-600"
                             }`}
                           >
-                            {visit ? "방문완료" : "방문전"}
-                          </div>
+                            {visit ? "방문완료" : "방문체크"}
+                          </button>
                         </div>
+
+                        {visit && isEditingVisitMemo && (
+                          <div className="mt-3">
+                            <div className="mb-2 text-sm font-bold text-gray-900">
+                              방문 메모
+                            </div>
+
+                            <textarea
+                              placeholder="교수님 반응 / 다음 액션 / 케이스 예정 등 입력"
+                              value={editingVisitMemo}
+                              onChange={(e) =>
+                                setEditingVisitMemo(e.target.value)
+                              }
+                              className="w-full rounded-2xl border p-3 text-sm text-gray-900"
+                              rows={3}
+                            />
+
+                            <div className="mt-2 flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  updateMemo(
+                                    item.professor.id,
+                                    item.period,
+                                    selectedDate,
+                                    editingVisitMemo,
+                                  );
+                                  setEditingVisitKey(null);
+                                }}
+                                className="rounded-2xl bg-blue-600 px-3 py-2 text-xs font-bold text-white"
+                              >
+                                저장
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setEditingVisitKey(null)}
+                                className="rounded-2xl bg-gray-200 px-3 py-2 text-xs font-bold text-gray-900"
+                              >
+                                취소
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {visit && !isEditingVisitMemo && (
+                          <div className="mt-3 rounded-xl bg-gray-100 p-3 text-sm text-gray-900">
+                            <div className="mb-1 font-bold">방문 메모</div>
+                            <div className="whitespace-pre-wrap text-gray-700">
+                              {visit.memo || "메모 없음"}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingVisitKey(visitKey);
+                                setEditingVisitMemo(visit.memo || "");
+                              }}
+                              className="mt-2 rounded-2xl bg-gray-200 px-3 py-2 text-xs font-bold text-gray-900"
+                            >
+                              메모 편집
+                            </button>
+                          </div>
+                        )}
+
+                        {!visit && (
+                          <div className="mt-3 rounded-xl bg-gray-100 p-3 text-sm text-gray-700">
+                            방문 체크 후 메모를 편집할 수 있습니다.
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -1678,6 +2042,50 @@ export default function Home() {
 
         {tab === "history" && (
           <div className="space-y-4">
+            <div className="rounded-3xl bg-white p-5 shadow-sm">
+              <div className="mb-1 text-xl font-bold text-gray-900">
+                교수별 방문 현황
+              </div>
+              <div className="text-sm text-gray-500">
+                이번주 방문 횟수와 마지막 방문일을 확인합니다.
+              </div>
+
+              <div className="mt-4 space-y-2">
+                {professorVisitStats.map(
+                  ({ professor, weeklyCount, daysSinceLastVisit }) => (
+                    <div
+                      key={professor.id}
+                      className="flex items-center justify-between rounded-2xl bg-gray-50 p-3 text-sm text-gray-900"
+                    >
+                      <div>
+                        <div className="font-bold">{professor.name}</div>
+                        <div className="text-xs text-gray-500">
+                          {professor.hospital || "병원 미입력"}
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <div className="font-bold text-blue-600">
+                          이번주 {weeklyCount}회
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {daysSinceLastVisit === null
+                            ? "방문 기록 없음"
+                            : `마지막 방문 ${daysSinceLastVisit}일 전`}
+                        </div>
+                      </div>
+                    </div>
+                  ),
+                )}
+
+                {professorVisitStats.length === 0 && (
+                  <div className="text-sm text-gray-500">
+                    등록된 교수님이 없습니다.
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="rounded-3xl bg-white p-5 shadow-sm">
               <div className="mb-1 text-xl font-bold text-gray-900">
                 교수별 메모 히스토리
@@ -2105,6 +2513,38 @@ export default function Home() {
                   </div>
                 </div>
               ))}
+            </div>
+
+            <div className="rounded-3xl bg-white p-5 shadow-sm">
+              <div className="mb-1 text-xl font-bold text-gray-900">
+                데이터 백업/복원
+              </div>
+              <div className="text-sm text-gray-500">
+                교수님, 방문, 이벤트, KPI 데이터를 파일로 내보내거나 가져올 수
+                있습니다.
+              </div>
+
+              <button
+                onClick={exportData}
+                className="mt-4 w-full rounded-2xl bg-blue-600 p-4 font-bold text-white"
+              >
+                데이터 내보내기
+              </button>
+
+              <label className="mt-3 block w-full cursor-pointer rounded-2xl bg-gray-200 p-4 text-center font-bold text-gray-900">
+                데이터 가져오기
+                <input
+                  type="file"
+                  accept="application/json"
+                  className="hidden"
+                  onChange={handleImportFileChange}
+                />
+              </label>
+
+              <div className="mt-3 text-xs text-gray-400">
+                가져오기를 실행하면 현재 저장된 데이터가 백업 파일의 내용으로
+                덮어씌워집니다.
+              </div>
             </div>
           </div>
         )}
