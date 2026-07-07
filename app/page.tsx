@@ -797,6 +797,162 @@ export default function Home() {
     setVisits(visits.filter((visit) => visit.professorId !== id));
   };
 
+  const loadDemoData = () => {
+    const hasData =
+      professors.length > 0 || visits.length > 0 || events.length > 0;
+
+    if (
+      hasData &&
+      !window.confirm(
+        "현재 저장된 데이터를 데모 데이터로 덮어씁니다. 계속하시겠습니까?",
+      )
+    ) {
+      return;
+    }
+
+    const base = activeToday;
+    const weekdayNames = ["일", "월", "화", "수", "목", "금", "토"];
+    const dayName = (offset: number) => {
+      const d = new Date(base);
+      d.setDate(d.getDate() + offset);
+      return weekdayNames[d.getDay()];
+    };
+    const dateKey = (offset: number) => {
+      const d = new Date(base);
+      d.setDate(d.getDate() + offset);
+      return formatDateKey(d);
+    };
+
+    const demoProfessors: Professor[] = [
+      {
+        id: 1,
+        name: "김민준",
+        hospital: "서울아산병원",
+        schedules: [
+          { day: dayName(0), period: "오전" },
+          { day: dayName(3), period: "오전" },
+        ],
+      },
+      {
+        id: 2,
+        name: "이서연",
+        hospital: "삼성서울병원",
+        schedules: [
+          { day: dayName(0), period: "오후" },
+          { day: dayName(2), period: "오전" },
+        ],
+      },
+      {
+        id: 3,
+        name: "박지훈",
+        hospital: "세브란스병원",
+        schedules: [
+          { day: dayName(1), period: "오전" },
+          { day: dayName(4), period: "오후" },
+        ],
+      },
+      {
+        id: 4,
+        name: "최은우",
+        hospital: "서울아산병원",
+        schedules: [
+          { day: dayName(2), period: "오후" },
+          { day: dayName(5), period: "오전" },
+        ],
+      },
+    ];
+
+    const demoVisits: Visit[] = [
+      {
+        professorId: 1,
+        period: "오전",
+        date: dateKey(-7),
+        memo: "신환 ICD 케이스 상의. 다음 주 시술 일정 조율 예정",
+      },
+      {
+        professorId: 1,
+        period: "오전",
+        date: dateKey(0),
+        memo: "시술 전 기기 재고 확인 요청 받음. CRT-D 리드 추가 필요",
+      },
+      {
+        professorId: 2,
+        period: "오전",
+        date: dateKey(-5),
+        memo: "ICM 적응증 환자 증가 추세. 삽입 교육 자료 전달",
+      },
+      {
+        professorId: 3,
+        period: "오전",
+        date: dateKey(-6),
+        memo: "CSP 케이스 관심 많으심. LBBAP 리드 샘플 문의",
+      },
+      {
+        professorId: 4,
+        period: "오전",
+        date: dateKey(-2),
+        memo: "제네레이터 교체 케이스 2건 다음 달 예정",
+      },
+    ];
+
+    const now = Date.now();
+    const demoEvents: Event[] = [
+      {
+        id: now,
+        date: dateKey(-1),
+        professorId: 1,
+        eventType: "시술",
+        memo: "ICD 신규 식립. DFT 테스트 정상, 케이스 참관 완료",
+        procedureTags: ["ICD"],
+      },
+      {
+        id: now + 1,
+        date: dateKey(2),
+        professorId: 3,
+        eventType: "시술",
+        memo: "CRT-D 업그레이드 예정. LV 리드 재고 사전 확인 필요",
+        procedureTags: ["CRT-D", "CSP"],
+      },
+      {
+        id: now + 2,
+        date: dateKey(5),
+        professorId: 2,
+        eventType: "컨퍼런스",
+        memo: "부정맥 연구회 심포지엄 참석",
+        procedureTags: [],
+      },
+      {
+        id: now + 3,
+        date: dateKey(-3),
+        professorId: 4,
+        eventType: "미팅",
+        memo: "신제품 라인업 소개 미팅",
+        procedureTags: [],
+      },
+    ];
+
+    const demoKpi = createDefaultKpiData();
+    demoKpi.products.ICD = { ...demoKpi.products.ICD, yearly: 24, actual: 14 };
+    demoKpi.products["CRT-D"] = {
+      ...demoKpi.products["CRT-D"],
+      yearly: 12,
+      actual: 7,
+    };
+    demoKpi.products.IPG = { ...demoKpi.products.IPG, yearly: 40, actual: 22 };
+    demoKpi.products["CRT-P"] = {
+      ...demoKpi.products["CRT-P"],
+      yearly: 8,
+      actual: 3,
+    };
+    demoKpi.products.ICM = { ...demoKpi.products.ICM, yearly: 30, actual: 19 };
+
+    setProfessors(demoProfessors);
+    setVisits(demoVisits);
+    setEvents(demoEvents);
+    setKpiData(demoKpi);
+    setTab("home");
+  };
+
   const exportData = () => {
     const payload = {
       exportedAt: new Date().toISOString(),
@@ -2545,6 +2701,23 @@ export default function Home() {
                 가져오기를 실행하면 현재 저장된 데이터가 백업 파일의 내용으로
                 덮어씌워집니다.
               </div>
+            </div>
+
+            <div className="rounded-3xl bg-white p-5 shadow-sm">
+              <div className="mb-1 text-xl font-bold text-gray-900">
+                데모 데이터
+              </div>
+              <div className="text-sm text-gray-500">
+                교수님, 외래 일정, 방문 메모, 이벤트, KPI가 채워진 샘플
+                데이터로 앱을 둘러볼 수 있습니다.
+              </div>
+
+              <button
+                onClick={loadDemoData}
+                className="mt-4 w-full rounded-2xl bg-gray-200 p-4 font-bold text-gray-900"
+              >
+                데모 데이터 채우기
+              </button>
             </div>
           </div>
         )}
