@@ -1,36 +1,75 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 외래 방문 트래커
 
-## Getting Started
+**심장리듬관리(CRM) 의료기기 영업 현장용 모바일 앱.**
+요구사항 정의부터 개발, 매일의 사용까지 전부 한 사람이 합니다.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## 왜 만들었나
+
+심장리듬관리 영업은 병원 복도에서 다음을 동시에 들고 다녀야 합니다.
+
+- 교수·병원별 **외래 요일과 오전/오후** — 지금 이 병원에 누가 있는가
+- 지난 방문에서 **무슨 얘기를 했는가**
+- 이번 주 **시술·컨퍼런스 일정**
+- 제품군별 **연간 목표 대비 지금 어디쯤인가**
+
+회사 시스템은 사무실에서 앉아 입력하는 구조라, **30초 안에 확인하고 기록하는 흐름**을
+지원하지 못했습니다. 그래서 그 흐름만 남긴 앱을 따로 만들었습니다.
+
+---
+
+## 기능
+
+| 탭 | 하는 일 |
+|---|---|
+| **외래** | 교수·병원별 외래 스케줄(요일 × 오전/오후) 등록 → 오늘 방문 대상 자동 산출, 방문 체크와 메모 |
+| **달력** | 시술 · 컨퍼런스 · 미팅 · 기타 일정을 교수와 묶어 달력에 표시. 방문 기록과 같은 체계로 관리 |
+| **KPI** | 제품군별 평균판매가 · 연간 목표 · 실적 · 달성률, 그리고 **목표까지 무엇을 몇 개 더 해야 하는지** 역산 |
+| **관리** | 교수 · 병원 · 외래 일정 등록/삭제 |
+
+제품 구분은 실제 영업에서 쓰는 그룹 체계를 그대로 씁니다 —
+제세동 기능이 있는 **고전압군(ICD · CRT-D)**, 페이싱 전용 **저전압군(IPG · CRT-P)**,
+그리고 진단용 **삽입형 심장 모니터(ICM)** 를 별도 축으로 둡니다.
+
+---
+
+## 설계 판단
+
+**서버를 두지 않았다.**
+병원 지하나 시술실 근처는 네트워크가 자주 끊깁니다. 로그인해야 열리는 앱은 정작
+필요한 순간에 안 열립니다. 모든 상태를 기기 안에 두어 **연결 상태와 무관하게 항상 동작**하도록 했습니다.
+데이터를 읽을 때는 저장값이 없거나 깨져 있어도 빈 값으로 떨어지게 해서, 앱이 흰 화면으로 죽지 않습니다.
+
+**날짜를 시간대에 의존하지 않게 처리했다.**
+서버 렌더 시각과 기기 시각이 다르면 "오늘"이 어긋나 잘못된 외래 일정이 뜹니다.
+날짜는 전부 로컬 기준 `YYYY-MM-DD` 문자열로 다루고, 날짜에 의존하는 화면은
+기기에서 값이 정해진 뒤에 그립니다.
+
+**이벤트를 방문 기록과 같은 구조로 묶었다.**
+시술 참관도 결국 "그날 그 교수를 만난 기록"입니다. 별도 체계를 만드는 대신
+방문 메모 구조를 그대로 재사용해서, 이벤트에도 메모 이력이 자동으로 따라옵니다.
+
+---
+
+## 스택
+
+```
+Next.js 16 (App Router, Turbopack) · React 19 · TypeScript 5
+Tailwind CSS v4 · PWA (설치 가능) · localStorage
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 실행
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm install
+npm run dev     # http://localhost:3000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## 다음
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+시술 일정을 등록하면 해당 케이스에 필요한 **기기·리드 구성 체크리스트**가 자동으로 뜨고,
+케이스 전 위탁 재고와 대조한 뒤, 시술 후 실제 사용 품목을 기록하도록 확장 중입니다.
+케이스 준비 누락을 기억이 아니라 구조로 막는 것이 목표입니다.
