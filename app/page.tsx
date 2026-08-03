@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { DEMO_FLAG_KEY, buildDemoData } from "./demoData";
+
 type Schedule = {
   day: string;
   period: string;
@@ -259,6 +261,7 @@ export default function Home() {
   const [today, setToday] = useState<Date | null>(null);
   const [calendarDate, setCalendarDate] = useState<Date | null>(null);
   const [hasLoadedStoredData, setHasLoadedStoredData] = useState(false);
+  const [isDemoData, setIsDemoData] = useState(false);
 
   const [searchText, setSearchText] = useState("");
   const [hospitalFilter, setHospitalFilter] = useState("전체");
@@ -325,11 +328,36 @@ export default function Home() {
 
   useEffect(() => {
     const frameId = window.requestAnimationFrame(() => {
-      setProfessors(loadStoredProfessors());
-      setVisits(loadStoredVisits());
-      setEvents(loadStoredEvents());
-      setKpiData(loadStoredKpiData());
+      const storedProfessors = loadStoredProfessors();
+      const storedVisits = loadStoredVisits();
+      const storedEvents = loadStoredEvents();
       const currentDate = new Date();
+
+      // 저장된 데이터가 하나도 없는 상태에서 ?demo=1 로 들어오면 바로 예시로 채운다.
+      // (README 나 포트폴리오 링크에서 곧장 채워진 화면을 보여주기 위한 경로)
+      const wantsDemo =
+        new URLSearchParams(window.location.search).get("demo") === "1";
+      const isEmpty =
+        storedProfessors.length === 0 &&
+        storedVisits.length === 0 &&
+        storedEvents.length === 0;
+
+      if (wantsDemo && isEmpty) {
+        const demo = buildDemoData(currentDate);
+
+        setProfessors(demo.professors);
+        setVisits(demo.visits);
+        setEvents(demo.events);
+        setKpiData(normalizeKpiData(demo.kpiData));
+        setIsDemoData(true);
+        localStorage.setItem(DEMO_FLAG_KEY, "true");
+      } else {
+        setProfessors(storedProfessors);
+        setVisits(storedVisits);
+        setEvents(storedEvents);
+        setKpiData(loadStoredKpiData());
+        setIsDemoData(localStorage.getItem(DEMO_FLAG_KEY) === "true");
+      }
 
       setToday(currentDate);
       setCalendarDate(currentDate);
@@ -1484,6 +1512,30 @@ export default function Home() {
   ).getDate();
   const firstDayOfMonth = new Date(calendarYear, calendarMonth, 1).getDay();
 
+  const loadDemoData = () => {
+    const demo = buildDemoData(today ?? new Date());
+
+    setProfessors(demo.professors);
+    setVisits(demo.visits);
+    setEvents(demo.events);
+    setKpiData(normalizeKpiData(demo.kpiData));
+    setIsDemoData(true);
+    localStorage.setItem(DEMO_FLAG_KEY, "true");
+    setTab("home");
+  };
+
+  const clearDemoData = () => {
+    setProfessors([]);
+    setVisits([]);
+    setEvents([]);
+    setKpiData(createDefaultKpiData());
+    setIsDemoData(false);
+    localStorage.removeItem(DEMO_FLAG_KEY);
+  };
+
+  const isEmptyState =
+    professors.length === 0 && visits.length === 0 && events.length === 0;
+
   const showInstallButton =
     !isAppInstalled && !installBannerDismissed && Boolean(installPromptEvent);
   const showIosInstallHint =
@@ -1506,6 +1558,44 @@ export default function Home() {
     <div className="min-h-screen bg-gray-100 p-4 pb-24 text-gray-900">
       <div className="mx-auto max-w-md">
         <div className="mb-5 text-3xl font-bold">외래 방문 트래커</div>
+
+        {isEmptyState && (
+          <div className="mb-4 rounded-3xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="font-bold">처음 오셨나요?</div>
+            <div className="mt-1 text-sm text-gray-600">
+              이 앱은 서버 없이 기기 안에만 데이터를 두기 때문에 처음엔 비어 있습니다.
+              예시 데이터를 채우면 실제로 어떻게 쓰는지 바로 볼 수 있어요.
+            </div>
+
+            <button
+              type="button"
+              onClick={loadDemoData}
+              className="mt-3 w-full rounded-2xl bg-gray-900 p-3 text-sm font-bold text-white"
+            >
+              예시 데이터로 둘러보기
+            </button>
+
+            <div className="mt-2 text-center text-xs text-gray-400">
+              가상의 병원·교수 데이터이며, 언제든 지울 수 있습니다.
+            </div>
+          </div>
+        )}
+
+        {isDemoData && !isEmptyState && (
+          <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl bg-amber-50 px-4 py-3 text-amber-900">
+            <div className="text-xs font-bold">
+              예시 데이터를 보고 있습니다 (가상 정보)
+            </div>
+
+            <button
+              type="button"
+              onClick={clearDemoData}
+              className="shrink-0 rounded-full bg-amber-900/10 px-3 py-1 text-xs font-bold"
+            >
+              지우기
+            </button>
+          </div>
+        )}
 
         {(showInstallButton || showIosInstallHint) && (
           <div className="mb-4 rounded-3xl bg-blue-600 p-4 text-white shadow-sm">

@@ -3,6 +3,15 @@
 **심장리듬관리(CRM) 의료기기 영업 현장용 모바일 앱.**
 요구사항 정의부터 개발, 매일의 사용까지 전부 한 사람이 합니다.
 
+### ▶ [예시 데이터로 바로 둘러보기](https://clinic-tracker-ricky.vercel.app/?demo=1)
+
+> 설치·로그인 없이 열립니다. 데이터는 브라우저 안에만 저장되고, 앱 안에서 언제든 지울 수 있습니다.
+> 등장하는 병원·교수는 전부 가상입니다.
+
+| 오늘 방문 대상 | 방문 캘린더 | 방문 이력 | KPI · 갭 역산 |
+|---|---|---|---|
+| ![오늘 방문 대상](docs/screenshots/01-home.png) | ![방문 캘린더](docs/screenshots/02-calendar.png) | ![방문 이력](docs/screenshots/03-history.png) | ![KPI](docs/screenshots/04-kpi.png) |
+
 ---
 
 ## 왜 만들었나
